@@ -25,7 +25,8 @@ struct LinkedList<'a> {
     _size: usize,
     _num_ops: usize,
     _num_completed: usize,
-    _head: Option<Box<Node<'a>>>
+    _head: Option<Box<Node<'a>>>,
+    _saved_list: Option<Box<LinkedList<'a>>>
 }
 
 //Add in fake head node here for consistency
@@ -38,6 +39,14 @@ impl<'a> LinkedList<'a> {
             _num_ops: 0,
             _num_completed: 0,
             _head: None,
+            _saved_list: Some(Box::new(LinkedList {
+                _size_initial: 0,
+                _size: 0,
+                _num_ops: 0,
+                _num_completed: 0,
+                _head: None,
+                _saved_list: None,
+            }))
         }
     }
 
@@ -118,9 +127,9 @@ impl<'a> LinkedList<'a> {
         if node.changed.as_mut().unwrap().changed.is_some() {
             node.changed.as_mut().unwrap().is_deleted = true;
             node.changed = node.changed.as_mut().unwrap().changed.take();
-            //SAVE FOR COMMIT - drop(node.changed.as_mut().unwrap());
+            drop(node.changed.as_mut().unwrap());
         } else {
-            //SAVE FOR COMMIT - drop(node.changed.as_mut().unwrap());
+            drop(node.changed.as_mut().unwrap());
             node.changed.as_mut().unwrap().is_deleted = true;
             node.changed = None;
 
@@ -132,19 +141,34 @@ impl<'a> LinkedList<'a> {
 
     fn Commit(&mut self) {
         if self._num_ops != self._num_completed {
-            //Call rollback
+            //Call rollback - essentially just making all the "changed" into "None"
             return;
         } else {
-            let mut node = self._head.as_mut().unwrap();
+            let mut new_node = self._head.as_mut().unwrap();
+            let mut new_head = Node {
+                    data: new_node.data,
+                    next: None,
+                    changed: None,
+                    is_deleted: false,
+            };
+            self._saved_list.as_mut().unwrap()._head = Some(Box::new(new_head));
+            let mut saved_node = self._saved_list.as_mut().unwrap()._head.as_mut().unwrap();
+
             let mut i = 0;
 
             //TODO: Find a way to move over the reference from changed to next
-            while i < self._size && node.changed.is_some() {
-                node.next.insert(Box::new(**node.changed.as_ref().unwrap()));
-                node = node.changed.as_mut().unwrap();
+            while i < self._size && new_node.changed.is_some() {
+                new_node = new_node.changed.as_mut().unwrap();
+                let mut temp = Node {
+                    data: new_node.data,
+                    next: None,
+                    changed: None,
+                    is_deleted: false,
+                };
+                saved_node.next = Some(Box::new(temp));
+                saved_node = saved_node.next.as_mut().unwrap();
                 i += 1;
             }
-            node.next = None;
             self._size_initial = self._size;
             self._num_completed = 0;
             self._num_ops = 0;
@@ -152,16 +176,42 @@ impl<'a> LinkedList<'a> {
     }
 
 
-    fn ToString(&self) {
-        println!("{}", self._size_initial);
-        let mut last = &self._head;
-            while let Some(node) = last {
-                println!("{}", match last {
-                    None => "Nothing",
-                    Some(ref x) => x.data
-                });
-                last = &node.next;
+    fn ToStringSaved(&mut self) {
+        println!("Saved List: ");
+        if self._saved_list.as_mut().unwrap()._head.is_none() {
+            return;
+        }
+
+        let mut iterator = self._saved_list.as_mut().unwrap()._head.as_mut().unwrap();
+
+        let mut i = 0;
+
+            //TODO: Find a way to move over the reference from changed to next
+            while i < self._size_initial && iterator.next.is_some() {
+                println!("{}", iterator.data);
+                iterator = iterator.next.as_mut().unwrap();
+                i += 1;
             }
+            println!("{}", iterator.data);
+    }
+
+    fn ToStringEdited(&mut self) {
+        println!("Edited list: ");
+        if self._head.is_none() {
+            return;
+        }
+
+        let mut iterator = self._head.as_mut().unwrap();
+
+        let mut i = 0;
+
+            //TODO: Find a way to move over the reference from changed to next
+            while i < self._size_initial && iterator.changed.is_some() {
+                println!("{}", iterator.data);
+                iterator = iterator.changed.as_mut().unwrap();
+                i += 1;
+            }
+            println!("{}", iterator.data);
     }
 }
 
@@ -170,13 +220,23 @@ fn main() {
     let mut my_list = LinkedList::new();
 
     my_list.Add(0, "This is node number 1");
-    my_list.ToString();
+    my_list.ToStringSaved();
+    my_list.ToStringEdited();
     my_list.Add(1, "This is node number 2");
-    my_list.ToString();
+    my_list.ToStringSaved();
+    my_list.ToStringEdited();
     my_list.Add(1, "This is node number 3");
-    my_list.ToString();
+    my_list.ToStringSaved();
+    my_list.ToStringEdited();
+    my_list.Delete(1);
+    my_list.ToStringSaved();
+    my_list.ToStringEdited();
     my_list.Commit();
-    my_list.ToString();
+    my_list.ToStringSaved();
+    my_list.ToStringEdited();
+    my_list.Delete(1);
+    my_list.ToStringSaved();
+    my_list.ToStringEdited();
 
 
 }
