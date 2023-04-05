@@ -10,7 +10,7 @@
 //2nd phase commit
 //  Since everything went alright, now we just sweep through and do two things
 //  First, we delete any nodes marked for deletion
-//  Second, we copy all "changed" pointers to the "next" pointers
+//  Second, we copy all "changed" pointers to the "next" pointers, and update _size_initial
 //  And our list is now saved!
 
 struct Node<'a> {
@@ -21,7 +21,10 @@ struct Node<'a> {
 }
 
 struct LinkedList<'a> {
+    _size_initial: usize,
     _size: usize,
+    _num_ops: usize,
+    _num_completed: usize,
     _head: Option<Box<Node<'a>>>
 }
 
@@ -30,7 +33,10 @@ impl<'a> LinkedList<'a> {
 
     fn new() -> LinkedList<'a> {
         LinkedList {
+            _size_initial: 0,
             _size: 0,
+            _num_ops: 0,
+            _num_completed: 0,
             _head: None,
         }
     }
@@ -40,6 +46,8 @@ impl<'a> LinkedList<'a> {
         if iKey > self._size {
             return;
         }
+
+        self._num_ops += 1;
 
         let mut new_node = Node {
             data: string,
@@ -51,6 +59,7 @@ impl<'a> LinkedList<'a> {
         if self._size == 0 && iKey == 0 {
             self._head = Some(Box::new(new_node));
             self._size += 1;
+            self._num_completed += 1;
             return;
         }
 
@@ -58,6 +67,7 @@ impl<'a> LinkedList<'a> {
             new_node.changed = self._head.take();
             self._head = Some(Box::new(new_node));
             self._size += 1;
+            self._num_completed += 1;
             return;
         }
 
@@ -73,6 +83,7 @@ impl<'a> LinkedList<'a> {
 
         node.changed = Some(Box::new(new_node));
         self._size += 1;
+        self._num_completed += 1;
     }
 
     fn Delete(&mut self, iKey: usize) {
@@ -81,15 +92,19 @@ impl<'a> LinkedList<'a> {
             return;
         }
 
+        self._num_ops += 1;
+
         if self._size == 0 && iKey == 0 {
             drop(self._head.as_mut().unwrap());
             self._size -= 1;
+            self._num_completed += 1;
             return;
         }
 
         if iKey == 0 {
             self._head = self._head.as_mut().unwrap().changed.take();
             self._size += 1;
+            self._num_completed += 1;
             return;
         }
 
@@ -100,7 +115,7 @@ impl<'a> LinkedList<'a> {
             node = node.changed.as_mut().unwrap();
             i += 1;
         }
-        if(node.changed.as_mut().unwrap().changed.is_some()) {
+        if node.changed.as_mut().unwrap().changed.is_some() {
             node.changed.as_mut().unwrap().is_deleted = true;
             node.changed = node.changed.as_mut().unwrap().changed.take();
             //SAVE FOR COMMIT - drop(node.changed.as_mut().unwrap());
@@ -111,19 +126,41 @@ impl<'a> LinkedList<'a> {
 
         }
 
-        self._size += 1;
+        self._size -= 1;
+        self._num_completed += 1;
+    }
+
+    fn Commit(&mut self) {
+        if self._num_ops != self._num_completed {
+            //Call rollback
+            return;
+        } else {
+            let mut node = self._head.as_mut().unwrap();
+            let mut i = 0;
+
+            //TODO: Find a way to move over the reference from changed to next
+            while i < self._size && node.changed.is_some() {
+                node.next.insert(Box::new(**node.changed.as_ref().unwrap()));
+                node = node.changed.as_mut().unwrap();
+                i += 1;
+            }
+            node.next = None;
+            self._size_initial = self._size;
+            self._num_completed = 0;
+            self._num_ops = 0;
+        }
     }
 
 
     fn ToString(&self) {
-        println!("{}", self._size);
+        println!("{}", self._size_initial);
         let mut last = &self._head;
             while let Some(node) = last {
                 println!("{}", match last {
-                    None => false,
-                    Some(ref x) => x.is_deleted
+                    None => "Nothing",
+                    Some(ref x) => x.data
                 });
-                last = &node.changed;
+                last = &node.next;
             }
     }
 }
@@ -138,7 +175,7 @@ fn main() {
     my_list.ToString();
     my_list.Add(1, "This is node number 3");
     my_list.ToString();
-    my_list.Delete(1);
+    my_list.Commit();
     my_list.ToString();
 
 
