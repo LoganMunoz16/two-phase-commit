@@ -24,7 +24,7 @@ The nodes are essentially the same as a normal linked list, except just with som
 * next: The next node in the list, wrapped in first a Box, and then an Option
 
 ### Linked List
-The linked list itself is modified a bit to allow for the commit and rollback interface. The following is a list and description of 
+The linked list itself is modified a bit to allow for the commit and rollback interface. The following is a list and description of the contents of a linked list:
 
 * _size_saved : The size(length) of the most recently saved linked list
 * _size: The size(length) of the linked list the user is currently modifying
